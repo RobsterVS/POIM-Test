@@ -1,0 +1,16 @@
+{
+  "name": "POI Erfassung",
+  "short_name": "POI Erfassung",
+  "description": "Punkte mit Position, Fotos und Kategorie unterwegs erfassen und an den POI Manager übertragen.",
+  "lang": "de-CH",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F9F9",
+  "theme_color": "#172A2D",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

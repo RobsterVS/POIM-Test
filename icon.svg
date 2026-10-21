@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="0" fill="#172A2D"/>
+  <rect x="96" y="136" width="320" height="240" rx="44" fill="#FFFFFF"/>
+  <rect x="96" y="352" width="320" height="24" rx="0" fill="#087F83"/>
+  <text x="196" y="318" font-family="Georgia,'Times New Roman',serif" font-size="190" font-weight="700" fill="#087F83" text-anchor="middle">Φ</text>
+  <text x="330" y="304" font-family="Inter,Arial,sans-serif" font-size="92" font-weight="800" fill="#172A2D" text-anchor="middle">-ka</text>
+</svg>
