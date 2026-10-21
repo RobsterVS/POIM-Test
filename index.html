@@ -104,7 +104,19 @@
   /* Kartenvorschau auf der Startseite (bleibt beim Scrollen oben) */
   .topwrap{position:sticky;top:0;z-index:20;}
   .topwrap header.top{position:static;}
-  .homemap{position:relative;height:200px;background:#dfe7e6;border-bottom:1px solid var(--border);}
+  .homemap{position:relative;height:200px;background:#dfe7e6;overflow:hidden;}
+  .homemap.full{position:fixed;inset:0;height:100% !important;z-index:35;}
+  .mapbtns{position:absolute;right:10px;top:10px;z-index:1000;display:flex;flex-direction:column;gap:8px;}
+  .homemap.full .mapbtns{top:max(12px,env(safe-area-inset-top));}
+  .mbtn{width:42px;height:42px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--navy);font-size:21px;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0;}
+  .mbtn.on{color:var(--accent);}
+  .maphandle{height:22px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px;touch-action:none;cursor:ns-resize;user-select:none;-webkit-user-select:none;}
+  .maphandle .grip{width:44px;height:5px;border-radius:3px;background:var(--faint);}
+  .maphandle .hlbl{display:none;font-size:12.5px;font-weight:700;color:var(--dim);}
+  .maphandle.closed{height:30px;}
+  .maphandle.closed .hlbl{display:inline;}
+  .maphandle.drag .grip{background:var(--accent);}
+  .medot{width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 2px rgba(37,99,235,.35),0 1px 4px rgba(0,0,0,.4);}
   #hmap,#fmap{position:absolute;inset:0;}
   .fmapwrap{position:relative;height:220px;border-radius:12px;overflow:hidden;margin-top:10px;background:#dfe7e6;border:1px solid var(--border);}
   .mapoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:var(--dim);font-size:13px;}
@@ -149,7 +161,10 @@
   <span class="appname">POI Erfassung</span>
   <button class="hbtn" id="menuBtn" aria-label="Menü">☰</button>
 </header>
-<div class="homemap"><div id="hmap"></div><div class="mapoff hidden" id="hmapOff">🗺 Karte ohne Netz nicht verfügbar</div></div>
+<div class="homemap" id="homemap"><div id="hmap"></div><div class="mapoff hidden" id="hmapOff">🗺 Karte ohne Netz nicht verfügbar</div>
+  <div class="mapbtns"><button class="mbtn" id="hLocate" title="Meine Position anzeigen" aria-label="Meine Position">◎</button><button class="mbtn" id="hFull" title="Vollbild" aria-label="Vollbild">⤢</button></div>
+</div>
+<div class="maphandle" id="hHandle" title="Ziehen, um die Karte zu verkleinern oder zu vergrössern"><span class="grip"></span><span class="hlbl">🗺 Karte</span></div>
 </div>
 <main>
   <div class="stats">
@@ -237,6 +252,7 @@ const CATS = [
   { id:'sonstige', label:'Weitere Orte', color:'#607174', icon:'📌', subs:[], conds:[] },
 ];
 const LEVELS = ['gering', 'mittel', 'hoch'];
+const APP_VERSION = '2026-10-21.6';   // bei jedem Update erhöhen (auch CACHE in sw.js)
 const MAX_PX = 2000, JPEG_Q = 0.85;
 
 const $ = id => document.getElementById(id);
@@ -430,7 +446,7 @@ async function renderHomeMap(fit){
   pois.forEach(p => {
     if(p.lat == null) return;
     const m = L.marker([p.lat, p.lng], { icon: pinIcon(cat(p.category), sel.has(p.uid) ? 'sel' : '') }).addTo(hLayer);
-    m.on('click', () => { if(selecting()) toggleSel(p.uid); else openForm(p); });
+    m.on('click', () => { if(selecting()) toggleSel(p.uid); else{ if($('homemap').classList.contains('full')){ openAfterFull = p; history.back(); } else openForm(p); } });
   });
   const pts = pois.filter(p => p.lat != null).map(p => [p.lat, p.lng]);
   if(fit){
@@ -439,6 +455,51 @@ async function renderHomeMap(fit){
   }
   setTimeout(() => hmap.invalidateSize(), 50);
 }
+/* Kartenvorschau: Höhe am Griff ziehen (ganz zu = nur Griff), Vollbild, eigene Position */
+const MAP_DEF = 200;
+let mapH = MAP_DEF;
+try{ const v = localStorage.getItem('pe_mapH'); if(v !== null && isFinite(+v)) mapH = +v; }catch(e){}
+function setMapH(h, save){
+  mapH = Math.max(0, Math.min(Math.round(window.innerHeight * 0.6), Math.round(h)));
+  $('homemap').style.height = mapH + 'px'; $('hHandle').classList.toggle('closed', mapH === 0);
+  if(hmap) hmap.invalidateSize();
+  if(save) try{ localStorage.setItem('pe_mapH', mapH); }catch(e){}
+}
+(() => {
+  const hd = $('hHandle'); let y0 = null, h0 = 0, moved = false;
+  hd.addEventListener('pointerdown', e => { y0 = e.clientY; h0 = mapH; moved = false; hd.setPointerCapture(e.pointerId); hd.classList.add('drag'); });
+  hd.addEventListener('pointermove', e => { if(y0 === null) return; if(Math.abs(e.clientY - y0) > 4) moved = true; if(moved) setMapH(h0 + (e.clientY - y0)); });
+  const end = () => {
+    if(y0 === null) return; y0 = null; hd.classList.remove('drag');
+    if(!moved) setMapH(mapH === 0 ? MAP_DEF : 0, true);          // Antippen: auf/zu
+    else setMapH(mapH < 60 ? 0 : mapH, true);                     // fast zu = ganz zu
+  };
+  hd.addEventListener('pointerup', end); hd.addEventListener('pointercancel', end);
+})();
+function setFull(on){
+  $('homemap').classList.toggle('full', on); $('hFull').textContent = on ? '✕' : '⤢'; $('hFull').title = on ? 'Vollbild beenden' : 'Vollbild';
+  document.body.style.overflow = on ? 'hidden' : '';
+  if(on){ if(mapH === 0) $('homemap').style.height = ''; history.pushState({ full: 1 }, ''); } else setMapH(mapH);
+  setTimeout(() => hmap && hmap.invalidateSize(), 60);
+}
+$('hFull').onclick = () => { if($('homemap').classList.contains('full')) history.back(); else setFull(true); };
+let meMk = null, meCirc = null, openAfterFull = null;
+$('hLocate').onclick = () => {
+  if(!hmap){ toast('Karte braucht Internet.', true); return; }
+  if(!navigator.geolocation){ toast('Kein GPS verfügbar.', true); return; }
+  $('hLocate').classList.add('on'); toast('Position wird gesucht…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude], acc = pos.coords.accuracy;
+    if(!meMk){
+      meCirc = L.circle(ll, { radius: acc, color: '#2563eb', weight: 1, fillOpacity: 0.1, interactive: false }).addTo(hmap);
+      meMk = L.marker(ll, { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="medot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(hmap);
+    }else{ meMk.setLatLng(ll); meCirc.setLatLng(ll); meCirc.setRadius(acc); }
+    hmap.setView(ll, Math.max(hmap.getZoom(), 16));
+  }, err => { $('hLocate').classList.remove('on'); toast(err.code === 1 ? 'Standortzugriff nicht erlaubt.' : 'Position nicht gefunden.', true); },
+  { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 });
+};
+setMapH(mapH);
+
 /* Formular: kleine Karte mit aktuellem Punkt, Genauigkeitskreis und den übrigen Punkten */
 async function initFormMap(){
   try{ await loadLeaflet(); }catch(e){ $('fmapOff').classList.remove('hidden'); $('fmapHint').classList.add('hidden'); return; }
@@ -515,7 +576,8 @@ async function cancelForm(){
   closeForm(); renderHome();
 }
 $('fCancel').onclick = () => history.back();
-window.addEventListener('popstate', () => { if(!$('mapBox').classList.contains('hidden')){ $('mapBox').classList.add('hidden'); history.pushState({ form: 1 }, ''); return; } if(cur) cancelForm(); });
+window.addEventListener('popstate', () => {
+  if($('homemap').classList.contains('full') && !cur){ setFull(false); if(openAfterFull){ const q = openAfterFull; openAfterFull = null; openForm(q); } return; } if(!$('mapBox').classList.contains('hidden')){ $('mapBox').classList.add('hidden'); history.pushState({ form: 1 }, ''); return; } if(cur) cancelForm(); });
 $('fDelete').onclick = async () => {
   if(!(await ask('Punkt löschen?', 'Der Punkt und seine Fotos werden auf diesem Gerät gelöscht.', 'Löschen', true))) return;
   const p = pois.find(x => x.uid === cur.uid);
@@ -632,19 +694,27 @@ async function startExport(chosen){
     d.innerHTML = `<div class="dlg"><h2>Bereit zum Senden</h2>
       <p><b>${esc(exp.msg)}</b><br><span class="hint" style="margin:0">Grösse etwa ${fmtMB(exp.size)}${exp.size > 24 * 1048576 ? ' – für Mail zu gross, WhatsApp oder Drive verwenden' : ''}</span></p>
       ${canShare ? `<ol style="padding-left:20px;line-height:1.6;margin:8px 0">
-        <li>Unten auf <b>«⇪ Teilen»</b> tippen</li><li>Wählen, <b>wie</b> du senden willst:<br><span class="hint" style="margin:0">💬 WhatsApp · ✉️ Gmail/Mail · ☁️ Google Drive · 📶 Quick Share/Bluetooth …</span></li><li>Empfänger bzw. Ordner wählen und <b>Senden</b></li></ol>
+        <li>Unten auf <b>«⇪ Exportieren»</b> tippen</li><li>Wählen, <b>wie</b> du senden willst:<br><span class="hint" style="margin:0">💬 WhatsApp · ✉️ Gmail/Mail · ☁️ Google Drive · 📶 Quick Share/Bluetooth …</span></li><li>Empfänger bzw. Ordner wählen und <b>Senden</b></li></ol>
         ${exp.size > 24 * 1048576 ? '' : ''}`
         : `<p class="hint">Senden direkt aus der App ist hier nicht möglich (App bitte über den Link öffnen bzw. installieren). Du kannst die Datei stattdessen speichern.</p>`}
-      <div class="acts"><button class="btn" data-a="cancel">Abbrechen</button>${canShare ? '<button class="btn primary" data-a="share">⇪ Teilen …</button>' : '<button class="btn primary" data-a="save">Datei speichern</button>'}</div>
+      <div class="acts"><button class="btn" data-a="cancel">Abbrechen</button>${canShare ? '<button class="btn primary" data-a="share">⇪ Exportieren …</button>' : '<button class="btn primary" data-a="save">Datei speichern</button>'}</div>
       ${canShare ? '<p style="text-align:center;margin:12px 0 0"><button class="btn small" data-a="save" style="border:0;background:none;color:var(--dim);text-decoration:underline">stattdessen als Datei speichern</button></p>' : ''}</div>`;
     d.addEventListener('click', e => {
       const b = e.target.closest('[data-a]'); if(!b && e.target !== d) return;
       const a = b ? b.dataset.a : 'cancel';
       if(a === 'share'){
         // direkt im Tipp aufrufen – sonst blockiert Chrome
-        navigator.share({ files: [exp.share], title: 'POI Erfassung', text: exp.msg })
+        // 1. Versuch mit Begleittext; manche Android-Apps lehnen Datei + Text ab → 2. Versuch nur mit der Datei
+        const data = d._try ? { files: [exp.share] } : { files: [exp.share], title: 'POI Erfassung', text: exp.msg };
+        navigator.share(data)
           .then(() => { d.remove(); resolve('shared'); })
-          .catch(err => { if(err.name === 'AbortError') return; d.remove(); resolve('err:' + err.message); });
+          .catch(err => {
+            if(err.name === 'AbortError') return;   // im Menü abgebrochen: Dialog bleibt offen
+            d._try = (d._try || 0) + 1;
+            const box = d.querySelector('.shareerr') || d.querySelector('.dlg').appendChild(Object.assign(document.createElement('div'), { className: 'shareerr' }));
+            box.innerHTML = `<p style="color:var(--danger);margin:12px 0 4px"><b>Teilen hat nicht geklappt.</b> ${d._try === 1 ? 'Bitte nochmals auf «⇪ Exportieren …» tippen – die App versucht es jetzt anders.' : 'Bitte «stattdessen als Datei speichern» verwenden und die Datei aus «Downloads» senden.'}</p>
+              <p class="hint" style="margin:0">Grund: ${esc(err.name)}${err.message ? ' – ' + esc(err.message) : ''}</p>`;
+          });
         return;
       }
       if(a === 'save'){
@@ -656,7 +726,6 @@ async function startExport(chosen){
     document.body.appendChild(d);
   });
   if(!res) return;
-  if(res.startsWith('err:')){ toast('Teilen fehlgeschlagen. Bitte nochmals versuchen.', true); return; }
   if(res === 'saved') toast(`Gespeichert in «Downloads»: ${exp.json.name}`);
   // Erst nachfragen, dann als übertragen markieren
   const ok = await dialog(`<h2>Ist es angekommen?</h2><p>${res === 'shared' ? 'Wurde die Nachricht mit der Datei abgeschickt?' : 'Hast du die Datei weitergegeben?'}</p><p class="hint">Erst dann werden die Punkte als «übertragen» markiert. Nochmals senden ist jederzeit möglich, es entstehen keine doppelten Punkte.</p>`,
@@ -674,6 +743,7 @@ $('menuBtn').onclick = async () => {
     <div class="lbl">Erfasst von</div><input type="text" id="byIn" value="${esc(by)}" placeholder="Dein Name">
     <p class="hint">Wird bei jedem neuen Punkt mitgespeichert.</p>
     <p class="hint">${esc(est)}${est ? '<br>' : ''}Speicher ${persisted ? '<b>dauerhaft</b> (wird nicht automatisch geleert)' : 'noch nicht dauerhaft – App auf dem Startbildschirm installieren'}.</p>
+    <p class="hint">Version ${APP_VERSION}</p>
     <button class="btn danger" id="clrSent" style="width:100%;margin-top:6px" ${sent ? '' : 'disabled'}>Übertragene Punkte löschen (${sent})</button>`,
     [{ label: 'Schliessen', value: ov => ({ by: ov.querySelector('#byIn').value.trim() }) }]);
   if(r && r.by !== undefined && r.by !== by){ by = r.by; await kvSet('by', by); toast('Gespeichert.'); }
@@ -698,7 +768,19 @@ document.addEventListener('click', async e => {
     await dialog(`<h2>Bitte über den Link öffnen</h2><p>Die App wurde als Datei geöffnet. So funktionieren <b>Standort</b>, <b>Senden</b> und das <b>dauerhafte Speichern</b> nicht.</p><p>Bitte den Link der App in Chrome öffnen (https://…) und von dort installieren.</p>`, [{ label: 'Verstanden', cls: 'primary', value: true }]);
   }
   // offline startbar machen (nur wenn über https bzw. localhost geladen)
-  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    // Neue Version übernimmt sofort; die laufende Seite bietet dann «Jetzt aktualisieren» an (nie mitten im Erfassen neu laden)
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => reg.update().catch(() => {})).catch(() => {});
+    // der neue Service Worker meldet seine Version; weicht sie ab, «Aktualisieren» anbieten (nie mitten im Erfassen neu laden)
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(!e.data || e.data.type !== 'version' || !(String(e.data.v) > APP_VERSION) || $('updBanner')) return;   // nur wenn neuer (Versionen sind Datum.Nummer)
+      const b = document.createElement('div'); b.id = 'updBanner'; b.className = 'toast'; b.style.cssText = 'bottom:110px;display:flex;align-items:center;gap:10px';
+      b.innerHTML = '<span>Neue Version verfügbar</span><button class="btn small primary">Aktualisieren</button>';
+      b.querySelector('button').onclick = () => { if(cur){ toast('Zuerst den Punkt speichern oder abbrechen.', true); return; } location.reload(); };
+      document.body.appendChild(b);
+    });
+    if(navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('version?');
+  }
   if(!by){
     const n = await dialog(`<h2>Willkommen</h2><p>Mit dieser App erfasst du Punkte unterwegs: Position, Fotos, Kategorie. Alles bleibt auf dem Handy, bis du es an den POI Manager überträgst.</p>
       <div class="lbl">Dein Name</div><input type="text" id="byIn" placeholder="z. B. Rob">`, [{ label: 'Los geht’s', cls: 'primary', value: ov => ov.querySelector('#byIn').value.trim() }]);
