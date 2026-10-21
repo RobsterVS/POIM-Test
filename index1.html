@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#172A2D">
+<meta name="mobile-web-app-capable" content="yes">
+<title>POI Erfassung</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root{
+    --bg:#F6F9F9; --panel:#FFFFFF; --panel-alt:#EEF6F6; --inset:#E9F3F2;
+    --border:#D9E3E3; --text:#172A2D; --dim:#607174; --faint:#93A5A7;
+    --navy:#172A2D; --accent:#087F83; --accent-bg:#DDF3F2;
+    --ok:#27865B; --warn:#D58B22; --danger:#C94B4B;
+    --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;}
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;}
+  button{cursor:pointer;}
+  .hidden{display:none !important;}
+
+  /* Kopfzeile */
+  header.top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));}
+  .logo{display:inline-flex;align-items:baseline;background:#fff;color:var(--navy);border-radius:7px;padding:2px 8px 3px 7px;font-weight:800;line-height:1.1;box-shadow:inset 0 -2px 0 var(--accent);}
+  .logo .phi{font-size:19px;color:var(--accent);font-family:Georgia,'Times New Roman',serif;}
+  .logo .ka{font-size:13px;letter-spacing:.3px;margin-left:1px;}
+  .appname{font-size:16px;font-weight:700;flex:1;}
+  .hbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:9px;padding:7px 11px;font-weight:600;font-size:14px;}
+
+  main{padding:12px 12px 120px;max-width:640px;margin:0 auto;}
+  .stats{display:flex;gap:8px;margin-bottom:12px;}
+  .stat{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;}
+  .stat b{display:block;font-size:22px;}
+  .stat span{font-size:12px;color:var(--dim);}
+  .stat.new b{color:var(--warn);}
+
+  .card{display:flex;gap:11px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:9px;margin-bottom:8px;width:100%;text-align:left;}
+  .thumb{width:58px;height:58px;border-radius:9px;flex:none;background:var(--inset);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;position:relative;}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .thumb .cnt{position:absolute;right:3px;bottom:3px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;border-radius:99px;padding:0 5px;}
+  .card .t{flex:1;min-width:0;}
+  .card .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .card .t span{display:block;font-size:12.5px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .badge{font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;flex:none;}
+  .badge.new{background:var(--warn);color:#fff;}
+  .badge.sent{background:var(--inset);color:var(--dim);}
+  .empty{text-align:center;color:var(--dim);padding:40px 16px;line-height:1.5;}
+  .empty .big{font-size:42px;}
+
+  /* Fusszeile mit Hauptaktionen */
+  .bottom{position:fixed;left:0;right:0;bottom:0;z-index:15;background:linear-gradient(transparent,var(--bg) 30%);padding:18px 12px max(12px,env(safe-area-inset-bottom));display:flex;gap:8px;max-width:640px;margin:0 auto;}
+  .btn{border:1.5px solid var(--border);background:var(--panel);border-radius:12px;padding:13px 16px;font-weight:700;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.danger{color:var(--danger);border-color:rgba(201,75,75,.45);}
+  .btn.big{flex:1;font-size:17px;padding:16px;}
+  .btn.small{padding:7px 11px;font-size:13.5px;border-radius:9px;}
+  .btn:disabled{opacity:.45;}
+
+  /* Erfassungsformular */
+  .sheet{position:fixed;inset:0;z-index:30;background:var(--bg);overflow-y:auto;}
+  .sheet header.top{gap:8px;}
+  .sec{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:10px;}
+  .sec > label,.lbl{display:block;font-size:11.5px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .gps{display:flex;align-items:center;gap:10px;}
+  .dot{width:14px;height:14px;border-radius:50%;flex:none;background:var(--faint);}
+  .dot.good{background:var(--ok);box-shadow:0 0 0 4px rgba(39,134,91,.18);}
+  .dot.mid{background:var(--warn);box-shadow:0 0 0 4px rgba(213,139,34,.18);}
+  .dot.bad{background:var(--danger);box-shadow:0 0 0 4px rgba(201,75,75,.18);}
+  .dot.wait{animation:pulse 1.2s infinite;}
+  @keyframes pulse{50%{opacity:.35;}}
+  .gps .txt{flex:1;min-width:0;}
+  .gps .txt b{display:block;font-size:16px;}
+  .gps .txt span{font-size:12.5px;color:var(--dim);}
+  .row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .lock{font-size:12px;font-weight:700;color:var(--accent);}
+
+  .photos{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+  .ph{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--inset);}
+  .ph img{width:100%;height:100%;object-fit:cover;}
+  .ph button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:16px;line-height:1;}
+  .addph{aspect-ratio:1;border:2px dashed var(--accent);border-radius:10px;background:var(--accent-bg);color:var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:13px;gap:2px;}
+  .addph .i{font-size:28px;}
+  .addph.gal{border-color:var(--border);background:var(--panel-alt);color:var(--dim);}
+
+  .tags{display:flex;flex-wrap:wrap;gap:7px;}
+  .tag{border:1.5px solid var(--border);background:var(--panel);border-radius:99px;padding:9px 14px;font-weight:600;font-size:14.5px;}
+  .tag.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .tag.cat.on{color:#fff;}
+  .tags.lvl .tag.on.l-gering{background:var(--ok);border-color:var(--ok);}
+  .tags.lvl .tag.on.l-mittel{background:var(--warn);border-color:var(--warn);}
+  .tags.lvl .tag.on.l-hoch{background:var(--danger);border-color:var(--danger);}
+  .sub{margin-top:12px;}
+
+  input[type=text],textarea{width:100%;border:1.5px solid var(--border);border-radius:10px;padding:11px 12px;background:var(--panel);font-size:16px;}
+  textarea{min-height:84px;resize:vertical;}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent);}
+  .hint{font-size:12.5px;color:var(--dim);margin:6px 0 0;}
+
+  /* Kartenvorschau auf der Startseite (bleibt beim Scrollen oben) */
+  .topwrap{position:sticky;top:0;z-index:20;}
+  .topwrap header.top{position:static;}
+  .homemap{position:relative;height:200px;background:#dfe7e6;overflow:hidden;}
+  .homemap.full{position:fixed;inset:0;height:100% !important;z-index:35;}
+  .mapbtns{position:absolute;right:10px;top:10px;z-index:1000;display:flex;flex-direction:column;gap:8px;}
+  .homemap.full .mapbtns{top:max(12px,env(safe-area-inset-top));}
+  .mbtn{width:42px;height:42px;border-radius:10px;border:1px solid var(--border);background:#fff;color:var(--navy);font-size:21px;line-height:1;box-shadow:0 1px 5px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;padding:0;}
+  .mbtn.on{color:var(--accent);}
+  .maphandle{height:22px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px;touch-action:none;cursor:ns-resize;user-select:none;-webkit-user-select:none;}
+  .maphandle .grip{width:44px;height:5px;border-radius:3px;background:var(--faint);}
+  .maphandle .hlbl{display:none;font-size:12.5px;font-weight:700;color:var(--dim);}
+  .maphandle.closed{height:30px;}
+  .maphandle.closed .hlbl{display:inline;}
+  .maphandle.drag .grip{background:var(--accent);}
+  .medot{width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 2px rgba(37,99,235,.35),0 1px 4px rgba(0,0,0,.4);}
+  #hmap,#fmap{position:absolute;inset:0;}
+  .fmapwrap{position:relative;height:220px;border-radius:12px;overflow:hidden;margin-top:10px;background:#dfe7e6;border:1px solid var(--border);}
+  .mapoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:var(--dim);font-size:13px;}
+  .pmk{width:26px;height:26px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-size:13px;}
+  .pmk.sel{box-shadow:0 0 0 3px var(--accent),0 1px 4px rgba(0,0,0,.45);transform:scale(1.15);}
+  .pmk.cur{width:30px;height:30px;font-size:15px;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--accent);}
+  /* Mehrfachauswahl */
+  .card.sel{border-color:var(--accent);background:var(--accent-bg);box-shadow:inset 0 0 0 1.5px var(--accent);}
+  .card .chk{width:24px;height:24px;border-radius:50%;border:2px solid var(--faint);flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800;}
+  .card.sel .chk{background:var(--accent);border-color:var(--accent);}
+  body:not(.selecting) .card .chk{display:none;}
+  body.selecting .card .badge{display:none;}
+  .card{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+  .selbar{align-items:center;}
+  .selcount{flex:1;font-weight:700;padding-left:2px;white-space:nowrap;font-size:14px;}
+  .selbar .btn{padding:12px 11px;white-space:nowrap;font-size:14.5px;flex:none;}
+  /* Karte (nur mit Netz) */
+  #mapBox{position:fixed;inset:0;z-index:40;background:#000;display:flex;flex-direction:column;}
+  #map{flex:1;}
+  #mapBox .bar{background:var(--navy);color:#fff;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;}
+  #mapBox .bar span{flex:1;font-size:13px;opacity:.85;}
+
+  /* Dialog & Meldungen */
+  .ov{position:fixed;inset:0;z-index:50;background:rgba(10,20,22,.55);display:flex;align-items:flex-end;justify-content:center;}
+  .dlg{background:var(--panel);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:18px 16px max(16px,env(safe-area-inset-bottom));max-height:90vh;overflow-y:auto;}
+  .dlg h2{margin:0 0 10px;font-size:18px;}
+  .dlg p{line-height:1.45;}
+  .dlg .acts{display:flex;gap:8px;margin-top:14px;}
+  .dlg .acts .btn{flex:1;}
+  .opt{display:flex;gap:10px;align-items:center;padding:12px;border:1.5px solid var(--border);border-radius:12px;margin-bottom:8px;}
+  .opt input{width:20px;height:20px;accent-color:var(--accent);}
+  .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:60;background:var(--navy);color:#fff;padding:11px 16px;border-radius:12px;font-weight:600;max-width:90vw;box-shadow:0 6px 20px rgba(0,0,0,.25);}
+  .toast.err{background:var(--danger);}
+</style>
+</head>
+<body>
+
+<!-- ============ Startbildschirm ============ -->
+<div class="topwrap">
+<header class="top">
+  <span class="logo" aria-label="Φ-ka"><span class="phi">Φ</span><span class="ka">-ka</span></span>
+  <span class="appname">POI Erfassung</span>
+  <button class="hbtn" id="menuBtn" aria-label="Menü">☰</button>
+</header>
+<div class="homemap" id="homemap"><div id="hmap"></div><div class="mapoff hidden" id="hmapOff">🗺 Karte ohne Netz nicht verfügbar</div>
+  <div class="mapbtns"><button class="mbtn" id="hLocate" title="Meine Position anzeigen" aria-label="Meine Position">◎</button><button class="mbtn" id="hFull" title="Vollbild" aria-label="Vollbild">⤢</button></div>
+</div>
+<div class="maphandle" id="hHandle" title="Ziehen, um die Karte zu verkleinern oder zu vergrössern"><span class="grip"></span><span class="hlbl">🗺 Karte</span></div>
+</div>
+<main>
+  <div class="stats">
+    <div class="stat"><b id="stAll">0</b><span>Punkte erfasst</span></div>
+    <div class="stat new"><b id="stNew">0</b><span>noch nicht übertragen</span></div>
+  </div>
+  <div id="list"></div>
+</main>
+<div class="bottom" id="homeBar">
+  <button class="btn" id="sendBtn">⇪ Übertragen</button>
+  <button class="btn primary big" id="addBtn">＋ Punkt erfassen</button>
+</div>
+<div class="bottom selbar hidden" id="selBar">
+  <button class="btn" id="selClose" aria-label="Auswahl beenden">✕</button>
+  <span class="selcount" id="selCount">0 ausgewählt</span>
+  <button class="btn danger" id="selDel">🗑 Löschen</button>
+  <button class="btn primary" id="selExp">⇪ Exportieren</button>
+</div>
+
+<!-- ============ Erfassen / Bearbeiten ============ -->
+<div class="sheet hidden" id="form">
+  <header class="top">
+    <button class="hbtn" id="fCancel">← Zurück</button>
+    <span class="appname" id="fTitle">Neuer Punkt</span>
+  </header>
+  <main>
+    <div class="sec">
+      <label>Position</label>
+      <div class="gps"><span class="dot wait" id="gDot"></span><div class="txt"><b id="gAcc">GPS wird gesucht…</b><span id="gPos">Bitte Standortzugriff erlauben</span></div><span class="lock hidden" id="gLock">🔒 fixiert</span></div>
+      <div class="row">
+        <button class="btn small" id="gFix">📍 Fixieren</button>
+        <button class="btn small" id="gRe">↻ Neu messen</button>
+        <button class="btn small" id="gMap">⤢ Grosse Karte</button>
+      </div>
+      <div class="fmapwrap"><div id="fmap"></div><div class="mapoff hidden" id="fmapOff">Karte ohne Netz nicht verfügbar – Position kommt trotzdem vom GPS.</div></div>
+      <p class="hint" id="fmapHint">Stimmt der Punkt nicht? Marker ziehen oder in die Karte tippen.</p>
+    </div>
+    <div class="sec">
+      <label>Fotos</label>
+      <div class="photos" id="fPhotos"></div>
+    </div>
+    <div class="sec">
+      <label>Kategorie</label>
+      <div class="tags" id="fCats"></div>
+      <div id="fAttrs"></div>
+    </div>
+    <div class="sec">
+      <label>Name (freiwillig)</label>
+      <input type="text" id="fName" placeholder="wird sonst automatisch gesetzt">
+      <div class="lbl" style="margin-top:12px">Notiz</div>
+      <textarea id="fNote" placeholder="Beschreibung, Hinweise … (Mikrofon der Tastatur zum Diktieren)"></textarea>
+    </div>
+    <div id="fMeta" class="hint" style="margin:0 4px 10px"></div>
+    <button class="btn danger hidden" id="fDelete" style="width:100%">Punkt löschen</button>
+  </main>
+  <div class="bottom"><button class="btn primary big" id="fSave">✓ Speichern</button></div>
+</div>
+
+<div id="mapBox" class="hidden">
+  <div id="map"></div>
+  <div class="bar"><span>Marker ziehen, um die Position zu korrigieren</span><button class="btn small" id="mCancel">Abbrechen</button><button class="btn small primary" id="mOk">Übernehmen</button></div>
+</div>
+
+<input type="file" id="camIn" class="hidden" accept="image/*" capture="environment">
+<input type="file" id="galIn" class="hidden" accept="image/*" multiple>
+
+<script>
+'use strict';
+/* =====================================================================
+   POI Erfassung – mobile Erfassung für den POI Manager (Android/Chrome)
+   Punkte + Fotos liegen in IndexedDB auf dem Gerät. «Übertragen» erzeugt
+   eine Datei (poi-erfassung_….json bzw. .txt), die der POI Manager importiert.
+   ===================================================================== */
+
+/* Kategorien wie im POI Manager (Stand Oktober 2026) */
+const COND_WX = [{id:'gewitter', label:'Gewitter'}, {id:'starkregen', label:'Starkregen'}, {id:'kaelteeinbruch', label:'Kälteeinbruch'}, {id:'dunkelheit', label:'Dunkelheit'}];
+const CATS = [
+  { id:'huette', label:'Schutzhütten', color:'#8b5cf6', icon:'🏠', subs:[], conds:[] },
+  { id:'rettung', label:'Rettung & Evakuation', color:'#D58B22', icon:'🚑', subs:[{id:'zufahrt', label:'Zufahrt'}, {id:'heli', label:'Helilandeplatz'}, {id:'notabstieg', label:'Notabstieg'}], conds:COND_WX, condsLabel:'Aktiv bei' },
+  { id:'rennleitung', label:'Rennleitung', color:'#334155', icon:'🏁', subs:[{id:'haltepunkt', label:'Haltepunkt'}], conds:COND_WX, condsLabel:'Aktiv bei' },
+  { id:'gefahr', label:'Gefahrenstellen', color:'#C94B4B', icon:'⚠️', level:true,
+    subs:[{id:'absturz', label:'Absturz'}, {id:'geologisch', label:'Geologisch'}, {id:'gewaesser', label:'Gewässer'}, {id:'schneeeis', label:'Schnee/Eis'}, {id:'verkehr', label:'Verkehr'}, {id:'blitzschlag', label:'Blitzschlag'}],
+    conds:[{id:'jederzeit', label:'jederzeit'}, {id:'gewitter', label:'Gewitter'}, {id:'starkregen', label:'Starkregen'}, {id:'kaelteeinbruch', label:'Kälteeinbruch'}, {id:'naesse', label:'Nässe'}, {id:'dunkelheit', label:'Dunkelheit'}] },
+  { id:'streckenbild', label:'Streckenbilder', color:'#5B7FA6', icon:'📷', subs:[], conds:[] },
+  { id:'sonstige', label:'Weitere Orte', color:'#607174', icon:'📌', subs:[], conds:[] },
+];
+const LEVELS = ['gering', 'mittel', 'hoch'];
+const APP_VERSION = '2026-10-21.6';   // bei jedem Update erhöhen (auch CACHE in sw.js)
+const MAX_PX = 2000, JPEG_Q = 0.85;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cat = id => CATS.find(c => c.id === id) || CATS[CATS.length - 1];
+const pad = n => String(n).padStart(2, '0');
+function fmtDate(iso){ const d = new Date(iso); return isNaN(d) ? '' : `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtTime(iso){ const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function toast(msg, err){ const t = document.createElement('div'); t.className = 'toast' + (err ? ' err' : ''); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2800); }
+function newUid(){ return 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7); }
+
+/* ---------- IndexedDB ---------- */
+let db;
+function openDb(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('poi-erfassung', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('pois', { keyPath: 'uid' }); d.createObjectStore('photos'); d.createObjectStore('kv'); };
+    r.onsuccess = () => { db = r.result; res(db); }; r.onerror = () => rej(r.error);
+  });
+}
+function tx(store, mode, fn){
+  return new Promise((res, rej) => {
+    const t = db.transaction(store, mode), s = t.objectStore(store); let out;
+    const r = fn(s); if(r) r.onsuccess = () => { out = r.result; };
+    t.oncomplete = () => res(out); t.onerror = t.onabort = () => rej(t.error);
+  });
+}
+const dbAll = () => tx('pois', 'readonly', s => s.getAll());
+const dbPut = p => tx('pois', 'readwrite', s => s.put(p));
+const dbDel = uid => tx('pois', 'readwrite', s => s.delete(uid));
+const phGet = id => tx('photos', 'readonly', s => s.get(id));
+const phPut = (id, blob) => tx('photos', 'readwrite', s => s.put(blob, id));
+const phDel = id => tx('photos', 'readwrite', s => s.delete(id));
+const kvGet = k => tx('kv', 'readonly', s => s.get(k));
+const kvSet = (k, v) => tx('kv', 'readwrite', s => s.put(v, k));
+
+/* Vorschaubilder (Object-URLs zwischenspeichern) */
+const urlCache = new Map();
+async function photoUrl(id){
+  if(urlCache.has(id)) return urlCache.get(id);
+  const b = await phGet(id); if(!b) return null;
+  const u = URL.createObjectURL(b); urlCache.set(id, u); return u;
+}
+
+/* ---------- Fotos verkleinern ---------- */
+async function shrink(file){
+  try{
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const s = Math.min(1, MAX_PX / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+    return await new Promise(r => c.toBlob(r, 'image/jpeg', JPEG_Q));
+  }catch(e){ return file; }   // z. B. Format nicht lesbar: Original behalten
+}
+
+/* ---------- Startbildschirm ---------- */
+let pois = [], by = '';
+async function renderHome(){
+  pois = (await dbAll()).sort((a, b) => (b.capturedAt || '').localeCompare(a.capturedAt || ''));
+  const fresh = pois.filter(p => !p.exportedAt || p.modified > p.exportedAt);
+  $('stAll').textContent = pois.length; $('stNew').textContent = fresh.length;
+  $('sendBtn').disabled = !pois.length;
+  [...sel].forEach(u => { if(!pois.some(p => p.uid === u)) sel.delete(u); }); updateSelBar();
+  renderHomeMap(renderHome.n !== pois.length); renderHome.n = pois.length;   // bei neuen/gelöschten Punkten Ausschnitt anpassen
+  if(!pois.length){
+    $('list').innerHTML = `<div class="empty"><div class="big">📍</div><b>Noch keine Punkte</b><br>Mit «＋ Punkt erfassen» die aktuelle Position, Fotos und Kategorie festhalten. Funktioniert auch ohne Empfang.</div>`;
+    return;
+  }
+  $('list').innerHTML = pois.map(p => {
+    const c = cat(p.category), arts = (p.subs || []).map(id => (c.subs.find(k => k.id === id) || {}).label).filter(Boolean);
+    const isNew = !p.exportedAt || p.modified > p.exportedAt;
+    return `<button class="card${sel.has(p.uid) ? ' sel' : ''}" data-uid="${esc(p.uid)}"><div class="thumb" data-ph="${esc((p.photos[0] || {}).id || '')}">${esc(c.icon)}${p.photos.length > 1 ? `<span class="cnt">${p.photos.length}</span>` : ''}</div>
+      <div class="t"><b>${esc(p.name || autoName(p))}</b><span>${esc(c.label)}${arts.length ? ' › ' + esc(arts.join(', ')) : ''}</span><span>${fmtDate(p.capturedAt)}${p.accuracy ? ' · ±' + Math.round(p.accuracy) + ' m' : ''}</span></div>
+      <span class="badge ${isNew ? 'new' : 'sent'}">${isNew ? 'neu' : 'übertragen'}</span><span class="chk">✓</span></button>`;
+  }).join('');
+  document.querySelectorAll('.thumb[data-ph]').forEach(async t => {
+    if(!t.dataset.ph) return; const u = await photoUrl(t.dataset.ph); if(!u) return;
+    const cnt = t.querySelector('.cnt'); t.innerHTML = `<img src="${u}" alt="">`; if(cnt) t.appendChild(cnt);
+  });
+}
+function autoName(p){ const c = cat(p.category), a = (p.subs || [])[0], l = a && (c.subs.find(k => k.id === a) || {}).label; return `${l || c.label} ${fmtTime(p.capturedAt)}`; }
+
+/* ---------- Formular ---------- */
+let cur = null, isNewPt = false, removedPhotos = [], gps = { watch: null, best: null, locked: false };
+function openForm(p){
+  isNewPt = !p; removedPhotos = [];
+  cur = p ? JSON.parse(JSON.stringify(p)) : { uid: newUid(), name: '', category: null, subs: [], conds: [], level: null, note: '', photos: [], lat: null, lng: null, elevation: null, accuracy: null, capturedAt: null, by };
+  $('fTitle').textContent = p ? (p.name || autoName(p)) : 'Neuer Punkt';
+  $('fName').value = cur.name || ''; $('fNote').value = cur.note || '';
+  $('fDelete').classList.toggle('hidden', isNewPt);
+  $('fMeta').textContent = p ? `Erfasst ${fmtDate(p.capturedAt)}${p.by ? ' von ' + p.by : ''}${p.exportedAt ? ' · übertragen ' + fmtDate(p.exportedAt) : ''}` : (by ? `Erfasst von ${by}` : '');
+  $('form').classList.remove('hidden'); $('form').scrollTop = 0; document.body.style.overflow = 'hidden';
+  renderCats(); renderPhotos();
+  gps.best = null; gps.shown = false;
+  if(isNewPt){ gps.locked = false; startGps(); }
+  else{ gps.locked = true; showGps(); }
+  initFormMap();
+  history.pushState({ form: 1 }, '');
+}
+function closeForm(){
+  stopGps(); $('form').classList.add('hidden'); document.body.style.overflow = ''; cur = null;
+}
+
+/* Kategorie, Art, Kritisch/Aktiv bei, Stufe */
+function renderCats(){
+  $('fCats').innerHTML = CATS.map(c => `<button class="tag cat${cur.category === c.id ? ' on' : ''}" data-cat="${c.id}" style="${cur.category === c.id ? `background:${c.color};border-color:${c.color}` : ''}">${c.icon} ${esc(c.label)}</button>`).join('');
+  const c = cur.category && cat(cur.category); let h = '';
+  if(c && c.subs.length) h += `<div class="sub"><div class="lbl">Art</div><div class="tags" data-k="subs">${c.subs.map(k => `<button class="tag${cur.subs.includes(k.id) ? ' on' : ''}" data-id="${k.id}">${c.icon} ${esc(k.label)}</button>`).join('')}</div></div>`;
+  if(c && c.conds.length) h += `<div class="sub"><div class="lbl">${esc(c.condsLabel || 'Kritisch bei')}</div><div class="tags" data-k="conds">${c.conds.map(k => `<button class="tag${cur.conds.includes(k.id) ? ' on' : ''}" data-id="${k.id}">${esc(k.label)}</button>`).join('')}</div></div>`;
+  if(c && c.level) h += `<div class="sub"><div class="lbl">Stufe</div><div class="tags lvl" data-k="level">${['', ...LEVELS].map(v => `<button class="tag${(cur.level || '') === v ? ' on' : ''}${v ? ' l-' + v : ''}" data-id="${v}">${v || '–'}</button>`).join('')}</div></div>`;
+  $('fAttrs').innerHTML = h;
+}
+$('fCats').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat]'); if(!b) return;
+  if(cur.category !== b.dataset.cat){ cur.category = b.dataset.cat; cur.subs = []; cur.conds = []; cur.level = null; }
+  renderCats(); updateFormMap(false);
+});
+$('fAttrs').addEventListener('click', e => {
+  const b = e.target.closest('.tag'); if(!b) return; const k = b.closest('.tags').dataset.k, id = b.dataset.id;
+  if(k === 'level') cur.level = id || null;
+  else cur[k] = cur[k].includes(id) ? cur[k].filter(x => x !== id) : [...cur[k], id];
+  renderCats();
+});
+
+/* Fotos */
+async function renderPhotos(){
+  const items = await Promise.all(cur.photos.map(async (ph, i) => `<div class="ph"><img src="${await photoUrl(ph.id) || ''}" alt=""><button data-i="${i}" aria-label="Foto entfernen">×</button></div>`));
+  $('fPhotos').innerHTML = items.join('') + `<button class="addph" id="addCam"><span class="i">📷</span>Aufnehmen</button><button class="addph gal" id="addGal"><span class="i">🖼</span>Galerie</button>`;
+}
+$('fPhotos').addEventListener('click', e => {
+  if(e.target.closest('#addCam')){ $('camIn').value = ''; $('camIn').click(); return; }
+  if(e.target.closest('#addGal')){ $('galIn').value = ''; $('galIn').click(); return; }
+  const x = e.target.closest('button[data-i]'); if(!x) return;
+  const ph = cur.photos.splice(+x.dataset.i, 1)[0]; if(ph) removedPhotos.push(ph.id); renderPhotos();
+});
+async function addFiles(files){
+  for(const f of files){
+    const blob = await shrink(f), id = cur.uid + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    await phPut(id, blob); cur.photos.push({ id, taken: new Date(f.lastModified || Date.now()).toISOString(), fresh: true });
+  }
+  renderPhotos();
+}
+$('camIn').addEventListener('change', e => addFiles([...e.target.files]));
+$('galIn').addEventListener('change', e => addFiles([...e.target.files]));
+
+/* ---------- GPS ---------- */
+function startGps(){
+  stopGps();
+  if(!('geolocation' in navigator)){ $('gAcc').textContent = 'Kein GPS verfügbar'; return; }
+  showGps();
+  gps.watch = navigator.geolocation.watchPosition(pos => {
+    if(gps.locked || !cur) return;
+    const c = pos.coords, cand = { lat: c.latitude, lng: c.longitude, acc: c.accuracy, ele: c.altitude, t: pos.timestamp };
+    // beste Messung seit dem Öffnen behalten; neuere bei ähnlicher Genauigkeit bevorzugen
+    if(!gps.best || cand.acc <= gps.best.acc * 1.15) gps.best = cand;
+    cur.lat = +gps.best.lat.toFixed(6); cur.lng = +gps.best.lng.toFixed(6); cur.accuracy = Math.round(gps.best.acc * 10) / 10;
+    cur.elevation = gps.best.ele != null ? Math.round(gps.best.ele) : null;
+    const first = !gps.shown; gps.shown = true;
+    showGps(); updateFormMap(first);
+  }, err => { if(!cur || gps.locked) return; $('gDot').className = 'dot bad'; $('gAcc').textContent = err.code === 1 ? 'Standortzugriff verweigert' : 'GPS nicht verfügbar';
+    $('gPos').textContent = err.code === 1 ? 'In den Browser-Einstellungen erlauben, oder Position auf der Karte setzen' : 'Ins Freie gehen oder später neu messen'; },
+  { enableHighAccuracy: true, maximumAge: 0, timeout: 60000 });
+}
+function stopGps(){ if(gps.watch != null){ navigator.geolocation.clearWatch(gps.watch); gps.watch = null; } }
+function showGps(){
+  const has = cur && cur.lat != null;
+  const a = cur && cur.accuracy;
+  $('gDot').className = 'dot ' + (!has ? 'wait' : a == null ? 'good' : a <= 10 ? 'good' : a <= 30 ? 'mid' : 'bad') + (!gps.locked && has ? '' : '');
+  $('gAcc').textContent = !has ? 'GPS wird gesucht…' : a != null ? `Genauigkeit ±${Math.round(a)} m` : 'Position gesetzt';
+  $('gPos').textContent = has ? `${cur.lat.toFixed(5)}, ${cur.lng.toFixed(5)}${cur.elevation != null ? ' · ' + cur.elevation + ' m' : ''}` : 'Bitte Standortzugriff erlauben';
+  $('gLock').classList.toggle('hidden', !gps.locked || !has);
+  $('gFix').classList.toggle('hidden', gps.locked || !has);
+}
+$('gFix').onclick = () => { gps.locked = true; stopGps(); showGps(); };
+$('gRe').onclick = () => { gps.locked = false; gps.best = null; gps.shown = false; if(cur){ cur.lat = cur.lng = cur.accuracy = cur.elevation = null; cur.manualPos = false; } updateFormMap(false); startGps(); };
+
+/* ---------- Karte (Leaflet nur bei Bedarf laden, braucht Internet) ---------- */
+let L_ready = null, map = null, mk = null, hmap = null, hLayer = null, fmap = null, fmk = null, fcirc = null, fOthers = null;
+const TILE = 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg';
+const pinIcon = (c, extra) => L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 15], html: `<div class="pmk ${extra || ''}" style="background:${c.color}">${c.icon}</div>` });
+/* Startseite: alle Punkte als Vorschau */
+async function renderHomeMap(fit){
+  try{ await loadLeaflet(); }catch(e){ $('hmapOff').classList.remove('hidden'); return; }
+  $('hmapOff').classList.add('hidden');
+  if(!hmap){
+    hmap = L.map('hmap', { zoomControl: false, attributionControl: true }).setView([46.8, 8.2], 7);
+    L.tileLayer(TILE, { attribution: '&copy; swisstopo', maxZoom: 18, minZoom: 6 }).addTo(hmap);
+    hLayer = L.layerGroup().addTo(hmap); fit = true;
+  }
+  hLayer.clearLayers();
+  pois.forEach(p => {
+    if(p.lat == null) return;
+    const m = L.marker([p.lat, p.lng], { icon: pinIcon(cat(p.category), sel.has(p.uid) ? 'sel' : '') }).addTo(hLayer);
+    m.on('click', () => { if(selecting()) toggleSel(p.uid); else{ if($('homemap').classList.contains('full')){ openAfterFull = p; history.back(); } else openForm(p); } });
+  });
+  const pts = pois.filter(p => p.lat != null).map(p => [p.lat, p.lng]);
+  if(fit){
+    if(pts.length === 1) hmap.setView(pts[0], 15); else if(pts.length > 1) hmap.fitBounds(pts, { padding: [24, 24], maxZoom: 16 });
+    else if(navigator.geolocation) navigator.geolocation.getCurrentPosition(ps => hmap.setView([ps.coords.latitude, ps.coords.longitude], 13), () => {}, { maximumAge: 600000, timeout: 8000 });
+  }
+  setTimeout(() => hmap.invalidateSize(), 50);
+}
+/* Kartenvorschau: Höhe am Griff ziehen (ganz zu = nur Griff), Vollbild, eigene Position */
+const MAP_DEF = 200;
+let mapH = MAP_DEF;
+try{ const v = localStorage.getItem('pe_mapH'); if(v !== null && isFinite(+v)) mapH = +v; }catch(e){}
+function setMapH(h, save){
+  mapH = Math.max(0, Math.min(Math.round(window.innerHeight * 0.6), Math.round(h)));
+  $('homemap').style.height = mapH + 'px'; $('hHandle').classList.toggle('closed', mapH === 0);
+  if(hmap) hmap.invalidateSize();
+  if(save) try{ localStorage.setItem('pe_mapH', mapH); }catch(e){}
+}
+(() => {
+  const hd = $('hHandle'); let y0 = null, h0 = 0, moved = false;
+  hd.addEventListener('pointerdown', e => { y0 = e.clientY; h0 = mapH; moved = false; hd.setPointerCapture(e.pointerId); hd.classList.add('drag'); });
+  hd.addEventListener('pointermove', e => { if(y0 === null) return; if(Math.abs(e.clientY - y0) > 4) moved = true; if(moved) setMapH(h0 + (e.clientY - y0)); });
+  const end = () => {
+    if(y0 === null) return; y0 = null; hd.classList.remove('drag');
+    if(!moved) setMapH(mapH === 0 ? MAP_DEF : 0, true);          // Antippen: auf/zu
+    else setMapH(mapH < 60 ? 0 : mapH, true);                     // fast zu = ganz zu
+  };
+  hd.addEventListener('pointerup', end); hd.addEventListener('pointercancel', end);
+})();
+function setFull(on){
+  $('homemap').classList.toggle('full', on); $('hFull').textContent = on ? '✕' : '⤢'; $('hFull').title = on ? 'Vollbild beenden' : 'Vollbild';
+  document.body.style.overflow = on ? 'hidden' : '';
+  if(on){ if(mapH === 0) $('homemap').style.height = ''; history.pushState({ full: 1 }, ''); } else setMapH(mapH);
+  setTimeout(() => hmap && hmap.invalidateSize(), 60);
+}
+$('hFull').onclick = () => { if($('homemap').classList.contains('full')) history.back(); else setFull(true); };
+let meMk = null, meCirc = null, openAfterFull = null;
+$('hLocate').onclick = () => {
+  if(!hmap){ toast('Karte braucht Internet.', true); return; }
+  if(!navigator.geolocation){ toast('Kein GPS verfügbar.', true); return; }
+  $('hLocate').classList.add('on'); toast('Position wird gesucht…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude], acc = pos.coords.accuracy;
+    if(!meMk){
+      meCirc = L.circle(ll, { radius: acc, color: '#2563eb', weight: 1, fillOpacity: 0.1, interactive: false }).addTo(hmap);
+      meMk = L.marker(ll, { icon: L.divIcon({ className: '', iconSize: [18, 18], iconAnchor: [9, 9], html: '<div class="medot"></div>' }), interactive: false, zIndexOffset: 2000 }).addTo(hmap);
+    }else{ meMk.setLatLng(ll); meCirc.setLatLng(ll); meCirc.setRadius(acc); }
+    hmap.setView(ll, Math.max(hmap.getZoom(), 16));
+  }, err => { $('hLocate').classList.remove('on'); toast(err.code === 1 ? 'Standortzugriff nicht erlaubt.' : 'Position nicht gefunden.', true); },
+  { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 });
+};
+setMapH(mapH);
+
+/* Formular: kleine Karte mit aktuellem Punkt, Genauigkeitskreis und den übrigen Punkten */
+async function initFormMap(){
+  try{ await loadLeaflet(); }catch(e){ $('fmapOff').classList.remove('hidden'); $('fmapHint').classList.add('hidden'); return; }
+  $('fmapOff').classList.add('hidden'); $('fmapHint').classList.remove('hidden');
+  if(!cur) return;
+  if(!fmap){
+    fmap = L.map('fmap', { zoomControl: true, attributionControl: false }).setView([46.8, 8.2], 8);
+    L.tileLayer(TILE, { maxZoom: 18, minZoom: 6 }).addTo(fmap);
+    fOthers = L.layerGroup().addTo(fmap);
+    fcirc = L.circle([46.8, 8.2], { radius: 10, color: '#087F83', weight: 1, fillOpacity: 0.12 }).addTo(fmap);
+    fmk = L.marker([46.8, 8.2], { draggable: true, icon: pinIcon(cat('sonstige'), 'cur'), zIndexOffset: 1000 }).addTo(fmap);
+    fmk.on('dragend', () => setManualPos(fmk.getLatLng()));
+    fmap.on('click', e => { if(cur) setManualPos(e.latlng); });
+  }
+  fOthers.clearLayers();
+  pois.forEach(p => { if(p.lat != null && (!cur || p.uid !== cur.uid)) L.marker([p.lat, p.lng], { icon: pinIcon(cat(p.category)), interactive: false, opacity: 0.6 }).addTo(fOthers); });
+  setTimeout(() => { fmap.invalidateSize(); updateFormMap(true); }, 60);
+}
+function updateFormMap(center){
+  if(!fmap || !cur) return;
+  const has = cur.lat != null;
+  fmk.setIcon(pinIcon(cat(cur.category || 'sonstige'), 'cur')); fmk.setOpacity(has ? 1 : 0); fcirc.setStyle({ opacity: has && cur.accuracy ? 1 : 0, fillOpacity: has && cur.accuracy ? 0.12 : 0 });
+  if(!has) return;
+  fmk.setLatLng([cur.lat, cur.lng]); fcirc.setLatLng([cur.lat, cur.lng]); fcirc.setRadius(cur.accuracy || 1);
+  if(center) fmap.setView([cur.lat, cur.lng], Math.max(fmap.getZoom(), 16));
+  else if(!fmap.getBounds().contains([cur.lat, cur.lng])) fmap.panTo([cur.lat, cur.lng]);
+}
+function setManualPos(ll){
+  cur.lat = +ll.lat.toFixed(6); cur.lng = +ll.lng.toFixed(6); cur.accuracy = null; cur.manualPos = true;
+  gps.locked = true; stopGps(); showGps(); updateFormMap(false);
+}
+function loadLeaflet(){
+  if(L_ready) return L_ready;
+  L_ready = new Promise((res, rej) => {
+    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; document.head.appendChild(css);
+    const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    s.onload = () => res(); s.onerror = () => { L_ready = null; rej(new Error('offline')); }; document.head.appendChild(s);
+  });
+  return L_ready;
+}
+$('gMap').onclick = async () => {
+  try{ await loadLeaflet(); }catch(e){ toast('Karte braucht Internet.', true); return; }
+  $('mapBox').classList.remove('hidden');
+  const ll = cur.lat != null ? [cur.lat, cur.lng] : [46.8, 8.2];
+  if(!map){
+    map = L.map('map', { zoomControl: true }).setView(ll, cur.lat != null ? 17 : 8);
+    L.tileLayer('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg', { attribution: '&copy; swisstopo', maxZoom: 18, minZoom: 6 }).addTo(map);
+    mk = L.marker(ll, { draggable: true, icon: pinIcon(cat(cur.category || 'sonstige'), 'cur') }).addTo(map);
+    map.on('click', e => mk.setLatLng(e.latlng));
+  }else{ map.invalidateSize(); map.setView(ll, cur.lat != null ? 17 : map.getZoom()); mk.setLatLng(ll); mk.setIcon(pinIcon(cat(cur.category || 'sonstige'), 'cur')); }
+  setTimeout(() => map.invalidateSize(), 60);
+};
+$('mCancel').onclick = () => $('mapBox').classList.add('hidden');
+$('mOk').onclick = () => {
+  setManualPos(mk.getLatLng()); updateFormMap(true); $('mapBox').classList.add('hidden');
+};
+
+/* ---------- Speichern / Löschen ---------- */
+$('fSave').onclick = async () => {
+  if(cur.lat == null){ toast('Noch keine Position – kurz warten oder auf der Karte setzen.', true); return; }
+  if(!cur.category){ toast('Bitte eine Kategorie wählen.', true); $('fCats').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  const now = new Date().toISOString();
+  cur.name = $('fName').value.trim(); cur.note = $('fNote').value.trim();
+  if(!cur.capturedAt) cur.capturedAt = now;
+  cur.modified = now; cur.photos.forEach(ph => delete ph.fresh);
+  await dbPut(cur);
+  for(const id of removedPhotos){ await phDel(id); urlCache.delete(id); }
+  toast(isNewPt ? 'Punkt gespeichert.' : 'Änderungen gespeichert.');
+  closeForm(); history.back(); renderHome();
+};
+async function cancelForm(){
+  if(!cur) return;
+  for(const ph of cur.photos) if(ph.fresh){ await phDel(ph.id); urlCache.delete(ph.id); }   // neu aufgenommene Fotos verwerfen
+  closeForm(); renderHome();
+}
+$('fCancel').onclick = () => history.back();
+window.addEventListener('popstate', () => {
+  if($('homemap').classList.contains('full') && !cur){ setFull(false); if(openAfterFull){ const q = openAfterFull; openAfterFull = null; openForm(q); } return; } if(!$('mapBox').classList.contains('hidden')){ $('mapBox').classList.add('hidden'); history.pushState({ form: 1 }, ''); return; } if(cur) cancelForm(); });
+$('fDelete').onclick = async () => {
+  if(!(await ask('Punkt löschen?', 'Der Punkt und seine Fotos werden auf diesem Gerät gelöscht.', 'Löschen', true))) return;
+  const p = pois.find(x => x.uid === cur.uid);
+  if(p) for(const ph of p.photos){ await phDel(ph.id); urlCache.delete(ph.id); }
+  await dbDel(cur.uid); for(const ph of cur.photos) if(ph.fresh) await phDel(ph.id);
+  closeForm(); history.back(); renderHome(); toast('Punkt gelöscht.');
+};
+/* Antippen = öffnen; lange drücken = auswählen; im Auswahlmodus schaltet Antippen die Auswahl um */
+const sel = new Set();
+const selecting = () => sel.size > 0;
+function updateSelBar(){
+  document.body.classList.toggle('selecting', selecting());
+  $('selBar').classList.toggle('hidden', !selecting()); $('homeBar').classList.toggle('hidden', selecting());
+  $('selCount').textContent = `${sel.size} ausgewählt`;
+}
+function toggleSel(uid){
+  sel.has(uid) ? sel.delete(uid) : sel.add(uid);
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', sel.has(c.dataset.uid)));
+  updateSelBar(); renderHomeMap(false);
+}
+let lp = null, lpFired = false;
+$('list').addEventListener('pointerdown', e => {
+  const c = e.target.closest('.card'); if(!c) return; lpFired = false;
+  const x = e.clientX, y = e.clientY;
+  lp = { timer: setTimeout(() => { lpFired = true; if(navigator.vibrate) navigator.vibrate(25); if(!sel.has(c.dataset.uid)) toggleSel(c.dataset.uid); }, 480), x, y };
+});
+const lpCancel = e => { if(!lp) return; if(e.type !== 'pointermove' || Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 10){ clearTimeout(lp.timer); lp = null; } };
+['pointerup', 'pointercancel', 'pointerleave', 'pointermove'].forEach(t => $('list').addEventListener(t, lpCancel));
+$('list').addEventListener('contextmenu', e => { if(e.target.closest('.card')) e.preventDefault(); });
+$('list').addEventListener('click', e => {
+  const c = e.target.closest('.card'); if(!c) return;
+  if(lpFired){ lpFired = false; return; }   // Klick nach langem Drücken ignorieren
+  if(selecting()) toggleSel(c.dataset.uid); else openForm(pois.find(p => p.uid === c.dataset.uid));
+});
+$('selClose').onclick = () => { sel.clear(); renderHome(); };
+$('selDel').onclick = async () => {
+  const list = pois.filter(p => sel.has(p.uid)), open = list.filter(p => !p.exportedAt || p.modified > p.exportedAt).length;
+  if(!(await ask(`${list.length} ${list.length === 1 ? 'Punkt' : 'Punkte'} löschen?`, `Die Punkte und ihre Fotos werden von diesem Gerät gelöscht.${open ? `<br><b style="color:var(--danger)">${open} davon ${open === 1 ? 'ist' : 'sind'} noch nicht übertragen.</b>` : ''}`, 'Löschen', true))) return;
+  for(const p of list){ for(const ph of p.photos){ await phDel(ph.id); urlCache.delete(ph.id); } await dbDel(p.uid); }
+  sel.clear(); renderHome(); toast(`${list.length} gelöscht.`);
+};
+$('selExp').onclick = () => startExport(pois.filter(p => sel.has(p.uid)));
+$('addBtn').onclick = () => openForm(null);
+
+/* ---------- Dialoge ---------- */
+function dialog(html, buttons){
+  return new Promise(res => {
+    const ov = document.createElement('div'); ov.className = 'ov';
+    ov.innerHTML = `<div class="dlg">${html}<div class="acts">${buttons.map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}">${b.label}</button>`).join('')}</div></div>`;
+    ov.addEventListener('click', e => { if(e.target === ov){ ov.remove(); res(null); return; } const b = e.target.closest('[data-i]'); if(!b) return; const v = buttons[+b.dataset.i].value; const r = typeof v === 'function' ? v(ov) : v; ov.remove(); res(r); });
+    document.body.appendChild(ov);
+  });
+}
+const ask = (t, txt, ok, danger) => dialog(`<h2>${t}</h2><p>${txt}</p>`, [{ label: 'Abbrechen', value: false }, { label: ok, cls: danger ? 'danger' : 'primary', value: true }]);
+
+/* ---------- Übertragen ---------- */
+const blobToDataUrl = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+/* Übertragen in zwei Schritten: 1) Datei vorbereiten, 2) «Teilen» antippen.
+   Chrome erlaubt das Teilen-Menü nur direkt nach einem Fingertipp – deshalb wird erst vorbereitet. */
+async function smaller(blob, px){
+  try{
+    const bmp = await createImageBitmap(blob); const s = Math.min(1, px / Math.max(bmp.width, bmp.height));
+    if(s >= 1){ bmp.close && bmp.close(); return blob; }
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+    return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+  }catch(e){ return blob; }
+}
+const fmtMB = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1048576).toFixed(1).replace('.', ',') + ' MB';
+const safeName = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
+async function buildExport(list, small, onProg){
+  const now = new Date(), stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const out = { format: 1, app: 'poi-erfassung', exported: now.toISOString(), by, pois: [] };
+  let nPh = 0, k = 0;
+  for(const p of list){
+    const photos = [];
+    for(let i = 0; i < p.photos.length; i++){
+      let b = await phGet(p.photos[i].id); if(!b) continue;
+      if(small) b = await smaller(b, 1600);
+      photos.push({ name: `${p.uid}_${i + 1}.jpg`, taken: p.photos[i].taken, data: await blobToDataUrl(b) }); nPh++;
+    }
+    out.pois.push({ uid: p.uid, name: p.name || autoName(p), category: p.category, subs: p.subs, conds: p.conds, level: p.level, lat: p.lat, lng: p.lng, elevation: p.elevation,
+      accuracy: p.accuracy, manualPos: !!p.manualPos, note: p.note, capturedAt: p.capturedAt, modified: p.modified, by: p.by || by, photos });
+    onProg && onProg(++k, list.length);
+  }
+  const text = JSON.stringify(out), base = `poi-erfassung_${safeName(by) ? safeName(by) + '_' : ''}${stamp}`;
+  const json = new File([text], base + '.json', { type: 'application/json' });
+  // Android teilt nicht jeden Dateityp: JSON versuchen, sonst .txt mit gleichem Inhalt
+  const share = navigator.canShare && navigator.canShare({ files: [json] }) ? json : new File([text], base + '.txt', { type: 'text/plain' });
+  const msg = `${list.length} ${list.length === 1 ? 'Punkt' : 'Punkte'}, ${nPh} ${nPh === 1 ? 'Foto' : 'Fotos'}${by ? ' von ' + by : ''}, ${fmtDate(now.toISOString())}`;
+  return { json, share, msg, size: json.size, nPh };
+}
+$('sendBtn').onclick = () => startExport(null);
+async function startExport(chosen){
+  const fresh = pois.filter(p => !p.exportedAt || p.modified > p.exportedAt);
+  const opt = await dialog(`<h2>${chosen ? 'Auswahl exportieren' : 'Übertragen'}</h2>
+    ${chosen ? `<p><b>${chosen.length} ${chosen.length === 1 ? 'Punkt' : 'Punkte'}</b> ausgewählt</p><input type="radio" name="w" value="sel" checked class="hidden">` : `<label class="opt"><input type="radio" name="w" value="new" ${fresh.length ? 'checked' : 'disabled'}> <span><b>Nur neue/geänderte</b> (${fresh.length})</span></label>
+    <label class="opt"><input type="radio" name="w" value="all" ${fresh.length ? '' : 'checked'}> <span><b>Alle</b> (${pois.length})</span></label>`}
+    <label class="opt"><input type="checkbox" id="small" checked> <span><b>Kleinere Fotos</b><br><span class="hint" style="margin:0">spart etwa 40 %, für die Kontrolle am Bildschirm ausreichend</span></span></label>`,
+    [{ label: 'Abbrechen', value: null }, { label: 'Weiter ›', cls: 'primary', value: ov => ({ w: ov.querySelector('input[name=w]:checked').value, small: ov.querySelector('#small').checked }) }]);
+  if(!opt) return;
+  const list = opt.w === 'sel' ? chosen : opt.w === 'new' ? fresh : pois;
+  // Schritt 1: vorbereiten (mit Fortschritt)
+  const ov = document.createElement('div'); ov.className = 'ov';
+  ov.innerHTML = `<div class="dlg"><h2>Wird vorbereitet…</h2><p id="prog">0 von ${list.length} Punkten</p></div>`; document.body.appendChild(ov);
+  let exp;
+  try{ exp = await buildExport(list, opt.small, (i, n) => { const e = ov.querySelector('#prog'); if(e) e.textContent = `${i} von ${n} Punkten`; }); }
+  catch(e){ ov.remove(); toast('Vorbereiten fehlgeschlagen: ' + e.message, true); return; }
+  ov.remove();
+  const canShare = !!(navigator.canShare && navigator.canShare({ files: [exp.share] }));
+  // Schritt 2: Teilen – der Tipp auf «Teilen» öffnet direkt das Android-Menü
+  const res = await new Promise(resolve => {
+    const d = document.createElement('div'); d.className = 'ov';
+    d.innerHTML = `<div class="dlg"><h2>Bereit zum Senden</h2>
+      <p><b>${esc(exp.msg)}</b><br><span class="hint" style="margin:0">Grösse etwa ${fmtMB(exp.size)}${exp.size > 24 * 1048576 ? ' – für Mail zu gross, WhatsApp oder Drive verwenden' : ''}</span></p>
+      ${canShare ? `<ol style="padding-left:20px;line-height:1.6;margin:8px 0">
+        <li>Unten auf <b>«⇪ Exportieren»</b> tippen</li><li>Wählen, <b>wie</b> du senden willst:<br><span class="hint" style="margin:0">💬 WhatsApp · ✉️ Gmail/Mail · ☁️ Google Drive · 📶 Quick Share/Bluetooth …</span></li><li>Empfänger bzw. Ordner wählen und <b>Senden</b></li></ol>
+        ${exp.size > 24 * 1048576 ? '' : ''}`
+        : `<p class="hint">Senden direkt aus der App ist hier nicht möglich (App bitte über den Link öffnen bzw. installieren). Du kannst die Datei stattdessen speichern.</p>`}
+      <div class="acts"><button class="btn" data-a="cancel">Abbrechen</button>${canShare ? '<button class="btn primary" data-a="share">⇪ Exportieren …</button>' : '<button class="btn primary" data-a="save">Datei speichern</button>'}</div>
+      ${canShare ? '<p style="text-align:center;margin:12px 0 0"><button class="btn small" data-a="save" style="border:0;background:none;color:var(--dim);text-decoration:underline">stattdessen als Datei speichern</button></p>' : ''}</div>`;
+    d.addEventListener('click', e => {
+      const b = e.target.closest('[data-a]'); if(!b && e.target !== d) return;
+      const a = b ? b.dataset.a : 'cancel';
+      if(a === 'share'){
+        // direkt im Tipp aufrufen – sonst blockiert Chrome
+        // 1. Versuch mit Begleittext; manche Android-Apps lehnen Datei + Text ab → 2. Versuch nur mit der Datei
+        const data = d._try ? { files: [exp.share] } : { files: [exp.share], title: 'POI Erfassung', text: exp.msg };
+        navigator.share(data)
+          .then(() => { d.remove(); resolve('shared'); })
+          .catch(err => {
+            if(err.name === 'AbortError') return;   // im Menü abgebrochen: Dialog bleibt offen
+            d._try = (d._try || 0) + 1;
+            const box = d.querySelector('.shareerr') || d.querySelector('.dlg').appendChild(Object.assign(document.createElement('div'), { className: 'shareerr' }));
+            box.innerHTML = `<p style="color:var(--danger);margin:12px 0 4px"><b>Teilen hat nicht geklappt.</b> ${d._try === 1 ? 'Bitte nochmals auf «⇪ Exportieren …» tippen – die App versucht es jetzt anders.' : 'Bitte «stattdessen als Datei speichern» verwenden und die Datei aus «Downloads» senden.'}</p>
+              <p class="hint" style="margin:0">Grund: ${esc(err.name)}${err.message ? ' – ' + esc(err.message) : ''}</p>`;
+          });
+        return;
+      }
+      if(a === 'save'){
+        const l = document.createElement('a'); l.href = URL.createObjectURL(exp.json); l.download = exp.json.name; document.body.appendChild(l); l.click(); l.remove();
+        setTimeout(() => URL.revokeObjectURL(l.href), 4000); d.remove(); resolve('saved'); return;
+      }
+      d.remove(); resolve(null);
+    });
+    document.body.appendChild(d);
+  });
+  if(!res) return;
+  if(res === 'saved') toast(`Gespeichert in «Downloads»: ${exp.json.name}`);
+  // Erst nachfragen, dann als übertragen markieren
+  const ok = await dialog(`<h2>Ist es angekommen?</h2><p>${res === 'shared' ? 'Wurde die Nachricht mit der Datei abgeschickt?' : 'Hast du die Datei weitergegeben?'}</p><p class="hint">Erst dann werden die Punkte als «übertragen» markiert. Nochmals senden ist jederzeit möglich, es entstehen keine doppelten Punkte.</p>`,
+    [{ label: 'Nein, noch nicht', value: false }, { label: 'Ja, gesendet', cls: 'primary', value: true }]);
+  if(ok){ for(const p of list){ p.exportedAt = new Date().toISOString(); await dbPut(p); } toast('Als übertragen markiert.'); if(chosen) sel.clear(); }
+  renderHome();
+}
+
+/* ---------- Menü ---------- */
+$('menuBtn').onclick = async () => {
+  const sent = pois.filter(p => p.exportedAt && !(p.modified > p.exportedAt)).length;
+  let est = ''; try{ const e = await navigator.storage.estimate(); est = `Belegt: ${(e.usage / 1048576).toFixed(1)} MB von etwa ${(e.quota / 1073741824).toFixed(1)} GB`; }catch(e){}
+  let persisted = false; try{ persisted = await navigator.storage.persisted(); }catch(e){}
+  const r = await dialog(`<h2>Einstellungen</h2>
+    <div class="lbl">Erfasst von</div><input type="text" id="byIn" value="${esc(by)}" placeholder="Dein Name">
+    <p class="hint">Wird bei jedem neuen Punkt mitgespeichert.</p>
+    <p class="hint">${esc(est)}${est ? '<br>' : ''}Speicher ${persisted ? '<b>dauerhaft</b> (wird nicht automatisch geleert)' : 'noch nicht dauerhaft – App auf dem Startbildschirm installieren'}.</p>
+    <p class="hint">Version ${APP_VERSION}</p>
+    <button class="btn danger" id="clrSent" style="width:100%;margin-top:6px" ${sent ? '' : 'disabled'}>Übertragene Punkte löschen (${sent})</button>`,
+    [{ label: 'Schliessen', value: ov => ({ by: ov.querySelector('#byIn').value.trim() }) }]);
+  if(r && r.by !== undefined && r.by !== by){ by = r.by; await kvSet('by', by); toast('Gespeichert.'); }
+};
+document.addEventListener('click', async e => {
+  if(!e.target.closest('#clrSent')) return;
+  e.target.closest('.ov').remove();
+  const sent = pois.filter(p => p.exportedAt && !(p.modified > p.exportedAt));
+  if(!(await ask('Übertragene Punkte löschen?', `${sent.length} bereits übertragene Punkte und ihre Fotos werden von diesem Gerät gelöscht. Prüfe vorher, ob sie im POI Manager angekommen sind.`, 'Löschen', true))) return;
+  for(const p of sent){ for(const ph of p.photos){ await phDel(ph.id); urlCache.delete(ph.id); } await dbDel(p.uid); }
+  renderHome(); toast(`${sent.length} Punkte gelöscht.`);
+});
+
+/* ---------- Start ---------- */
+(async () => {
+  await openDb();
+  by = (await kvGet('by')) || '';
+  try{ if(navigator.storage && navigator.storage.persist) await navigator.storage.persist(); }catch(e){}
+  renderHome(); loadLeaflet().catch(() => {});
+  // Als Datei geöffnet? Dann gehen Standort, Teilen und dauerhafter Speicher nicht.
+  if(!window.isSecureContext || !/^https?:$/.test(location.protocol)){
+    await dialog(`<h2>Bitte über den Link öffnen</h2><p>Die App wurde als Datei geöffnet. So funktionieren <b>Standort</b>, <b>Senden</b> und das <b>dauerhafte Speichern</b> nicht.</p><p>Bitte den Link der App in Chrome öffnen (https://…) und von dort installieren.</p>`, [{ label: 'Verstanden', cls: 'primary', value: true }]);
+  }
+  // offline startbar machen (nur wenn über https bzw. localhost geladen)
+  if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+    // Neue Version übernimmt sofort; die laufende Seite bietet dann «Jetzt aktualisieren» an (nie mitten im Erfassen neu laden)
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => reg.update().catch(() => {})).catch(() => {});
+    // der neue Service Worker meldet seine Version; weicht sie ab, «Aktualisieren» anbieten (nie mitten im Erfassen neu laden)
+    navigator.serviceWorker.addEventListener('message', e => {
+      if(!e.data || e.data.type !== 'version' || !(String(e.data.v) > APP_VERSION) || $('updBanner')) return;   // nur wenn neuer (Versionen sind Datum.Nummer)
+      const b = document.createElement('div'); b.id = 'updBanner'; b.className = 'toast'; b.style.cssText = 'bottom:110px;display:flex;align-items:center;gap:10px';
+      b.innerHTML = '<span>Neue Version verfügbar</span><button class="btn small primary">Aktualisieren</button>';
+      b.querySelector('button').onclick = () => { if(cur){ toast('Zuerst den Punkt speichern oder abbrechen.', true); return; } location.reload(); };
+      document.body.appendChild(b);
+    });
+    if(navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage('version?');
+  }
+  if(!by){
+    const n = await dialog(`<h2>Willkommen</h2><p>Mit dieser App erfasst du Punkte unterwegs: Position, Fotos, Kategorie. Alles bleibt auf dem Handy, bis du es an den POI Manager überträgst.</p>
+      <div class="lbl">Dein Name</div><input type="text" id="byIn" placeholder="z. B. Rob">`, [{ label: 'Los geht’s', cls: 'primary', value: ov => ov.querySelector('#byIn').value.trim() }]);
+    if(n){ by = n; await kvSet('by', by); }
+  }
+})();
+</script>
+</body>
+</html>
