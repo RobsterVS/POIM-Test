@@ -252,7 +252,7 @@ const CATS = [
   { id:'sonstige', label:'Weitere Orte', color:'#607174', icon:'📌', subs:[], conds:[] },
 ];
 const LEVELS = ['gering', 'mittel', 'hoch'];
-const APP_VERSION = '2026-10-21.6';   // bei jedem Update erhöhen (auch CACHE in sw.js)
+const APP_VERSION = '2026-10-21.7';   // bei jedem Update erhöhen (auch CACHE in sw.js)
 const MAX_PX = 2000, JPEG_Q = 0.85;
 
 const $ = id => document.getElementById(id);
@@ -666,7 +666,8 @@ async function buildExport(list, small, onProg){
   const text = JSON.stringify(out), base = `poi-erfassung_${safeName(by) ? safeName(by) + '_' : ''}${stamp}`;
   const json = new File([text], base + '.json', { type: 'application/json' });
   // Android teilt nicht jeden Dateityp: JSON versuchen, sonst .txt mit gleichem Inhalt
-  const share = navigator.canShare && navigator.canShare({ files: [json] }) ? json : new File([text], base + '.txt', { type: 'text/plain' });
+  // Chrome auf Android lehnt .json beim Teilen ab (obwohl canShare «ja» sagt) → immer als .txt teilen, Inhalt identisch
+  const share = new File([text], base + '.txt', { type: 'text/plain' });
   const msg = `${list.length} ${list.length === 1 ? 'Punkt' : 'Punkte'}, ${nPh} ${nPh === 1 ? 'Foto' : 'Fotos'}${by ? ' von ' + by : ''}, ${fmtDate(now.toISOString())}`;
   return { json, share, msg, size: json.size, nPh };
 }
@@ -705,14 +706,16 @@ async function startExport(chosen){
       if(a === 'share'){
         // direkt im Tipp aufrufen – sonst blockiert Chrome
         // 1. Versuch mit Begleittext; manche Android-Apps lehnen Datei + Text ab → 2. Versuch nur mit der Datei
-        const data = d._try ? { files: [exp.share] } : { files: [exp.share], title: 'POI Erfassung', text: exp.msg };
+        // 1. Versuch Datei + Begleittext, 2. nur Datei, 3. Datei als «Text» ohne Typ-Endung-Prüfung
+        const data = !d._try ? { files: [exp.share], title: 'POI Erfassung', text: exp.msg } : d._try === 1 ? { files: [exp.share] }
+          : { files: [new File([exp.share], exp.share.name, { type: 'text/plain' })], text: exp.msg };
         navigator.share(data)
           .then(() => { d.remove(); resolve('shared'); })
           .catch(err => {
             if(err.name === 'AbortError') return;   // im Menü abgebrochen: Dialog bleibt offen
             d._try = (d._try || 0) + 1;
             const box = d.querySelector('.shareerr') || d.querySelector('.dlg').appendChild(Object.assign(document.createElement('div'), { className: 'shareerr' }));
-            box.innerHTML = `<p style="color:var(--danger);margin:12px 0 4px"><b>Teilen hat nicht geklappt.</b> ${d._try === 1 ? 'Bitte nochmals auf «⇪ Exportieren …» tippen – die App versucht es jetzt anders.' : 'Bitte «stattdessen als Datei speichern» verwenden und die Datei aus «Downloads» senden.'}</p>
+            box.innerHTML = `<p style="color:var(--danger);margin:12px 0 4px"><b>Teilen hat nicht geklappt.</b> ${d._try < 3 ? 'Bitte nochmals auf «⇪ Exportieren …» tippen – die App versucht es jetzt anders.' : 'Bitte «stattdessen als Datei speichern» verwenden und die Datei aus «Downloads» senden.'}</p>
               <p class="hint" style="margin:0">Grund: ${esc(err.name)}${err.message ? ' – ' + esc(err.message) : ''}</p>`;
           });
         return;
