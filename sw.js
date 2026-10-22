@@ -1,8 +1,8 @@
 /* Service Worker der POI Erfassung: hält die App offline startbar und liefert Updates aus.
    Bei jeder neuen Version VERSION hier und APP_VERSION in index.html gleich setzen. */
-const VERSION = '2026-10-22.1';
+const VERSION = '2026-10-22.2';
 const CACHE = 'poi-erfassung-' + VERSION;
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   // App-Dateien am Browser-Cache vorbei holen, damit wirklich die neue Version gespeichert wird
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(FILES.map(f => fetch(f, { cache: 'no-store' }).then(r => c.put(f, r))))).then(() => self.skipWaiting()));

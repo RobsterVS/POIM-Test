@@ -8,7 +8,7 @@
 <title>POI Erfassung</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{
     --bg:#F6F9F9; --panel:#FFFFFF; --panel-alt:#EEF6F6; --inset:#E9F3F2;
@@ -37,6 +37,11 @@
   .stat{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:5px 9px;display:flex;flex-direction:column;justify-content:center;}
   .stat b{display:block;font-size:18px;line-height:1.15;}
   .stat span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .install{display:flex;align-items:center;gap:10px;background:var(--accent-bg);border:1.5px solid var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:10px;}
+  .install .txt{flex:1;font-size:13px;line-height:1.35;}
+  .install .txt b{display:block;font-size:14.5px;}
+  .install .btn{flex:none;padding:11px 14px;}
+  .install .x{border:0;background:none;color:var(--dim);font-size:20px;padding:0 2px;}
   .sbtn{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:5px 10px;border-radius:10px;font-size:18px;line-height:1.1;min-width:64px;}
   .sbtn span{font-size:11px;font-weight:700;}
   .sbtn.add{min-width:74px;}
@@ -171,6 +176,7 @@
 <div class="maphandle" id="hHandle" title="Ziehen, um die Karte zu verkleinern oder zu vergrössern"><span class="grip"></span><span class="hlbl">🗺 Karte</span></div>
 </div>
 <main>
+  <div class="install hidden" id="installBox"></div>
   <div class="stats" id="homeBar">
     <div class="stat"><b id="stAll">0</b><span>erfasst</span></div>
     <div class="stat new"><b id="stNew">0</b><span>neu</span></div>
@@ -254,7 +260,7 @@ const CATS = [
   { id:'sonstige', label:'Weitere Orte', color:'#607174', icon:'📌', subs:[], conds:[] },
 ];
 const LEVELS = ['gering', 'mittel', 'hoch'];
-const APP_VERSION = '2026-10-22.1';   // bei jedem Update erhöhen (auch CACHE in sw.js)
+const APP_VERSION = '2026-10-22.2';   // bei jedem Update erhöhen (auch CACHE in sw.js)
 const MAX_PX = 2000, JPEG_Q = 0.85;
 
 const $ = id => document.getElementById(id);
@@ -321,7 +327,7 @@ async function renderHome(){
   [...sel].forEach(u => { if(!pois.some(p => p.uid === u)) sel.delete(u); }); updateSelBar();
   renderHomeMap(renderHome.n !== pois.length); renderHome.n = pois.length;   // bei neuen/gelöschten Punkten Ausschnitt anpassen
   if(!pois.length){
-    $('list').innerHTML = `<div class="empty"><div class="big">📍</div><b>Noch keine Punkte</b><br>Mit «＋ Punkt erfassen» die aktuelle Position, Fotos und Kategorie festhalten. Funktioniert auch ohne Empfang.</div>`;
+    $('list').innerHTML = `<div class="empty"><div class="big">📍</div><b>Noch keine Punkte</b><br>Mit «＋ Erfassen» die aktuelle Position, Fotos und Kategorie festhalten. Funktioniert auch ohne Empfang.</div>`;
     return;
   }
   $('list').innerHTML = pois.map(p => {
@@ -762,6 +768,30 @@ document.addEventListener('click', async e => {
   for(const p of sent){ for(const ph of p.photos){ await phDel(ph.id); urlCache.delete(ph.id); } await dbDel(p.uid); }
   renderHome(); toast(`${sent.length} Punkte gelöscht.`);
 });
+
+/* ---------- Installieren ohne Browser-Menü ---------- */
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installEvt = null;
+function showInstall(kind){
+  const box = $('installBox'); if(standalone()){ box.classList.add('hidden'); return; }
+  try{ if(kind !== 'prompt' && localStorage.getItem('pe_noInstallHint') === '1') return; }catch(e){}
+  if(kind === 'prompt'){
+    box.innerHTML = `<span style="font-size:26px">📲</span><div class="txt"><b>Als App installieren</b>Dann startet sie über ein Symbol auf dem Startbildschirm, auch ohne Netz.</div><button class="btn primary" id="instBtn">Installieren</button>`;
+    $('instBtn').onclick = async () => { if(!installEvt) return; installEvt.prompt(); const r = await installEvt.userChoice.catch(() => ({})); installEvt = null; if(r.outcome === 'accepted') box.classList.add('hidden'); };
+  }else{
+    // kein Installations-Angebot: meist ein App-interner Browser (z. B. aus WhatsApp) oder nicht Chrome
+    const inApp = /; wv\)|WhatsApp|FBAN|FBAV|Instagram|Line\//.test(navigator.userAgent), chrome = /Chrome\//.test(navigator.userAgent) && !/SamsungBrowser|EdgA|OPR|Firefox/.test(navigator.userAgent);
+    const intent = `intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
+    box.innerHTML = inApp || !chrome
+      ? `<span style="font-size:24px">🌐</span><div class="txt"><b>In Chrome öffnen</b>Zum Installieren und für GPS bitte in Chrome öffnen.</div><a class="btn primary" href="${intent}" style="text-decoration:none">Chrome</a><button class="x" id="instX" aria-label="Schliessen">×</button>`
+      : `<span style="font-size:24px">📲</span><div class="txt"><b>Schon installiert?</b>Dann über das Symbol auf dem Startbildschirm öffnen. Sonst: Menü ⋮ → «App installieren».</div><button class="x" id="instX" aria-label="Schliessen">×</button>`;
+    $('instX').onclick = () => { box.classList.add('hidden'); try{ localStorage.setItem('pe_noInstallHint', '1'); }catch(e){} };
+  }
+  box.classList.remove('hidden');
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; showInstall('prompt'); });
+window.addEventListener('appinstalled', () => { installEvt = null; $('installBox').classList.add('hidden'); toast('Installiert – ab jetzt über das Symbol starten.'); });
+setTimeout(() => { if(!installEvt && !standalone() && /^https?:$/.test(location.protocol)) showInstall('hint'); }, 3500);
 
 /* ---------- Start ---------- */
 (async () => {
