@@ -1,6 +1,6 @@
 /* Service Worker der POI Erfassung: hält die App offline startbar und liefert Updates aus.
    Bei jeder neuen Version VERSION hier und APP_VERSION in index.html gleich setzen. */
-const VERSION = '2026-10-21.7';
+const VERSION = '2026-10-22.1';
 const CACHE = 'poi-erfassung-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', e => {

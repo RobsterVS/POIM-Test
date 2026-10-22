@@ -32,11 +32,15 @@
   .appname{font-size:16px;font-weight:700;flex:1;}
   .hbtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:9px;padding:7px 11px;font-weight:600;font-size:14px;}
 
-  main{padding:12px 12px 120px;max-width:640px;margin:0 auto;}
-  .stats{display:flex;gap:8px;margin-bottom:12px;}
-  .stat{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;}
-  .stat b{display:block;font-size:22px;}
-  .stat span{font-size:12px;color:var(--dim);}
+  main{padding:10px 10px 90px;max-width:640px;margin:0 auto;}
+  .stats{display:flex;gap:6px;margin-bottom:10px;align-items:stretch;}
+  .stat{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:5px 9px;display:flex;flex-direction:column;justify-content:center;}
+  .stat b{display:block;font-size:18px;line-height:1.15;}
+  .stat span{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sbtn{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:5px 10px;border-radius:10px;font-size:18px;line-height:1.1;min-width:64px;}
+  .sbtn span{font-size:11px;font-weight:700;}
+  .sbtn.add{min-width:74px;}
+  body.selecting #homeBar .sbtn{visibility:hidden;}
   .stat.new b{color:var(--warn);}
 
   .card{display:flex;gap:11px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:9px;margin-bottom:8px;width:100%;text-align:left;}
@@ -167,16 +171,14 @@
 <div class="maphandle" id="hHandle" title="Ziehen, um die Karte zu verkleinern oder zu vergrössern"><span class="grip"></span><span class="hlbl">🗺 Karte</span></div>
 </div>
 <main>
-  <div class="stats">
-    <div class="stat"><b id="stAll">0</b><span>Punkte erfasst</span></div>
-    <div class="stat new"><b id="stNew">0</b><span>noch nicht übertragen</span></div>
+  <div class="stats" id="homeBar">
+    <div class="stat"><b id="stAll">0</b><span>erfasst</span></div>
+    <div class="stat new"><b id="stNew">0</b><span>neu</span></div>
+    <button class="btn sbtn" id="sendBtn" title="Übertragen">⇪<span>Übertragen</span></button>
+    <button class="btn primary sbtn add" id="addBtn" title="Punkt erfassen">＋<span>Erfassen</span></button>
   </div>
   <div id="list"></div>
 </main>
-<div class="bottom" id="homeBar">
-  <button class="btn" id="sendBtn">⇪ Übertragen</button>
-  <button class="btn primary big" id="addBtn">＋ Punkt erfassen</button>
-</div>
 <div class="bottom selbar hidden" id="selBar">
   <button class="btn" id="selClose" aria-label="Auswahl beenden">✕</button>
   <span class="selcount" id="selCount">0 ausgewählt</span>
@@ -201,20 +203,20 @@
       </div>
       <div class="fmapwrap"><div id="fmap"></div><div class="mapoff hidden" id="fmapOff">Karte ohne Netz nicht verfügbar – Position kommt trotzdem vom GPS.</div></div>
       <p class="hint" id="fmapHint">Stimmt der Punkt nicht? Marker ziehen oder in die Karte tippen.</p>
+      <div class="lbl" style="margin-top:12px">Name (freiwillig)</div>
+      <input type="text" id="fName" placeholder="wird sonst automatisch gesetzt">
     </div>
     <div class="sec">
       <label>Fotos</label>
       <div class="photos" id="fPhotos"></div>
     </div>
     <div class="sec">
-      <label>Kategorie</label>
+      <label>Kategorie (freiwillig)</label>
       <div class="tags" id="fCats"></div>
       <div id="fAttrs"></div>
     </div>
     <div class="sec">
-      <label>Name (freiwillig)</label>
-      <input type="text" id="fName" placeholder="wird sonst automatisch gesetzt">
-      <div class="lbl" style="margin-top:12px">Notiz</div>
+      <label>Notiz</label>
       <textarea id="fNote" placeholder="Beschreibung, Hinweise … (Mikrofon der Tastatur zum Diktieren)"></textarea>
     </div>
     <div id="fMeta" class="hint" style="margin:0 4px 10px"></div>
@@ -252,12 +254,13 @@ const CATS = [
   { id:'sonstige', label:'Weitere Orte', color:'#607174', icon:'📌', subs:[], conds:[] },
 ];
 const LEVELS = ['gering', 'mittel', 'hoch'];
-const APP_VERSION = '2026-10-21.7';   // bei jedem Update erhöhen (auch CACHE in sw.js)
+const APP_VERSION = '2026-10-22.1';   // bei jedem Update erhöhen (auch CACHE in sw.js)
 const MAX_PX = 2000, JPEG_Q = 0.85;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const cat = id => CATS.find(c => c.id === id) || CATS[CATS.length - 1];
+const NO_CAT = { id: null, label: 'ohne Kategorie', color: '#93A5A7', icon: '📍', subs: [], conds: [] };
+const cat = id => (id && CATS.find(c => c.id === id)) || NO_CAT;
 const pad = n => String(n).padStart(2, '0');
 function fmtDate(iso){ const d = new Date(iso); return isNaN(d) ? '' : `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function fmtTime(iso){ const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
@@ -333,7 +336,7 @@ async function renderHome(){
     const cnt = t.querySelector('.cnt'); t.innerHTML = `<img src="${u}" alt="">`; if(cnt) t.appendChild(cnt);
   });
 }
-function autoName(p){ const c = cat(p.category), a = (p.subs || [])[0], l = a && (c.subs.find(k => k.id === a) || {}).label; return `${l || c.label} ${fmtTime(p.capturedAt)}`; }
+function autoName(p){ const c = cat(p.category), a = (p.subs || [])[0], l = a && (c.subs.find(k => k.id === a) || {}).label; return `${l || (p.category ? c.label : 'Punkt')} ${fmtTime(p.capturedAt)}`; }
 
 /* ---------- Formular ---------- */
 let cur = null, isNewPt = false, removedPhotos = [], gps = { watch: null, best: null, locked: false };
@@ -367,7 +370,8 @@ function renderCats(){
 }
 $('fCats').addEventListener('click', e => {
   const b = e.target.closest('[data-cat]'); if(!b) return;
-  if(cur.category !== b.dataset.cat){ cur.category = b.dataset.cat; cur.subs = []; cur.conds = []; cur.level = null; }
+  cur.category = cur.category === b.dataset.cat ? null : b.dataset.cat;   // nochmals antippen = keine Kategorie
+  cur.subs = []; cur.conds = []; cur.level = null;
   renderCats(); updateFormMap(false);
 });
 $('fAttrs').addEventListener('click', e => {
@@ -521,7 +525,7 @@ async function initFormMap(){
 function updateFormMap(center){
   if(!fmap || !cur) return;
   const has = cur.lat != null;
-  fmk.setIcon(pinIcon(cat(cur.category || 'sonstige'), 'cur')); fmk.setOpacity(has ? 1 : 0); fcirc.setStyle({ opacity: has && cur.accuracy ? 1 : 0, fillOpacity: has && cur.accuracy ? 0.12 : 0 });
+  fmk.setIcon(pinIcon(cat(cur.category), 'cur')); fmk.setOpacity(has ? 1 : 0); fcirc.setStyle({ opacity: has && cur.accuracy ? 1 : 0, fillOpacity: has && cur.accuracy ? 0.12 : 0 });
   if(!has) return;
   fmk.setLatLng([cur.lat, cur.lng]); fcirc.setLatLng([cur.lat, cur.lng]); fcirc.setRadius(cur.accuracy || 1);
   if(center) fmap.setView([cur.lat, cur.lng], Math.max(fmap.getZoom(), 16));
@@ -547,9 +551,9 @@ $('gMap').onclick = async () => {
   if(!map){
     map = L.map('map', { zoomControl: true }).setView(ll, cur.lat != null ? 17 : 8);
     L.tileLayer('https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.pixelkarte-farbe/default/current/3857/{z}/{x}/{y}.jpeg', { attribution: '&copy; swisstopo', maxZoom: 18, minZoom: 6 }).addTo(map);
-    mk = L.marker(ll, { draggable: true, icon: pinIcon(cat(cur.category || 'sonstige'), 'cur') }).addTo(map);
+    mk = L.marker(ll, { draggable: true, icon: pinIcon(cat(cur.category), 'cur') }).addTo(map);
     map.on('click', e => mk.setLatLng(e.latlng));
-  }else{ map.invalidateSize(); map.setView(ll, cur.lat != null ? 17 : map.getZoom()); mk.setLatLng(ll); mk.setIcon(pinIcon(cat(cur.category || 'sonstige'), 'cur')); }
+  }else{ map.invalidateSize(); map.setView(ll, cur.lat != null ? 17 : map.getZoom()); mk.setLatLng(ll); mk.setIcon(pinIcon(cat(cur.category), 'cur')); }
   setTimeout(() => map.invalidateSize(), 60);
 };
 $('mCancel').onclick = () => $('mapBox').classList.add('hidden');
@@ -560,7 +564,6 @@ $('mOk').onclick = () => {
 /* ---------- Speichern / Löschen ---------- */
 $('fSave').onclick = async () => {
   if(cur.lat == null){ toast('Noch keine Position – kurz warten oder auf der Karte setzen.', true); return; }
-  if(!cur.category){ toast('Bitte eine Kategorie wählen.', true); $('fCats').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const now = new Date().toISOString();
   cur.name = $('fName').value.trim(); cur.note = $('fNote').value.trim();
   if(!cur.capturedAt) cur.capturedAt = now;
@@ -590,7 +593,7 @@ const sel = new Set();
 const selecting = () => sel.size > 0;
 function updateSelBar(){
   document.body.classList.toggle('selecting', selecting());
-  $('selBar').classList.toggle('hidden', !selecting()); $('homeBar').classList.toggle('hidden', selecting());
+  $('selBar').classList.toggle('hidden', !selecting());
   $('selCount').textContent = `${sel.size} ausgewählt`;
 }
 function toggleSel(uid){
